@@ -138,7 +138,7 @@ class QueryEnhanceNodeTest {
 	}
 
 	@Test
-	void apply_unparseableResponse_returnsEmptyFinalState() throws Exception {
+	void apply_unparseableResponse_fallsBackToOriginalQuery() throws Exception {
 		OverAllState state = createTestState();
 		state.updateState(Map.of(INPUT_KEY, "长查询内容测试", EVIDENCE, "evidence data"));
 		when(llmService.callUser(anyString()))
@@ -147,7 +147,9 @@ class QueryEnhanceNodeTest {
 
 		NodeExecution execution = execute(queryEnhanceNode.apply(state), QUERY_ENHANCE_NODE_OUTPUT);
 
-		assertTrue(execution.finalResult().isEmpty());
+		QueryEnhanceOutputDTO output = output(execution);
+		assertEquals("长查询内容测试", output.getCanonicalQuery());
+		assertEquals(List.of("长查询内容测试"), output.getExpandedQueries());
 		verify(llmService, times(4)).callUser(anyString());
 	}
 

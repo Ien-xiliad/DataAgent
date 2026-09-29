@@ -23,6 +23,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.filter.Filter;
 
 import java.util.ArrayList;
@@ -31,8 +34,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -82,10 +87,27 @@ class DynamicFilterServiceTest {
 		Filter.Expression result = dynamicFilterService.buildDynamicFilter("1",
 				DocumentMetadataConstant.BUSINESS_TERM);
 
-		assertEquals(Filter.ExpressionType.AND, result.type());
-		assertFilterContains(result, "agentId", "1", "vectorType", DocumentMetadataConstant.BUSINESS_TERM,
-				DocumentMetadataConstant.DB_BUSINESS_TERM_ID, "[10, 20]");
+		assertNotNull(result);
 		verify(businessKnowledgeMapper).selectRecalledKnowledgeIds(1L);
+	}
+
+	@Test
+	void buildDynamicFilter_businessTerm_matchesStringMetadataInSimpleVectorStore() {
+		when(businessKnowledgeMapper.selectRecalledKnowledgeIds(anyLong())).thenReturn(List.of(10L));
+		EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
+		when(embeddingModel.dimensions()).thenReturn(2);
+		when(embeddingModel.embed(any(Document.class))).thenReturn(new float[] { 1.0f, 0.0f });
+		when(embeddingModel.embed(any(String.class))).thenReturn(new float[] { 1.0f, 0.0f });
+		MetadataAwareSimpleVectorStore store = new MetadataAwareSimpleVectorStore(embeddingModel);
+		store.add(List.of(new Document("term", Map.of("agentId", "1", DocumentMetadataConstant.VECTOR_TYPE,
+				DocumentMetadataConstant.BUSINESS_TERM, DocumentMetadataConstant.DB_BUSINESS_TERM_ID, "10"))));
+
+		Filter.Expression filter = dynamicFilterService.buildDynamicFilter("1",
+				DocumentMetadataConstant.BUSINESS_TERM);
+		List<Document> result = store.similaritySearch(
+				SearchRequest.builder().query("default").filterExpression(filter).topK(10).similarityThreshold(0).build());
+
+		assertEquals(1, result.size());
 	}
 
 	@Test

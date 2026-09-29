@@ -116,7 +116,9 @@ public class DocumentConverterUtil {
 		Map<String, Object> metadata = new HashMap<>();
 		metadata.put(DocumentMetadataConstant.VECTOR_TYPE, DocumentMetadataConstant.BUSINESS_TERM);
 		metadata.put(Constant.AGENT_ID, businessKnowledge.getAgentId().toString());
-		metadata.put(DocumentMetadataConstant.DB_BUSINESS_TERM_ID, businessKnowledge.getId());
+		// Store IDs as strings so SimpleVectorStore metadata filters do not compare
+		// numeric values with different Java wrapper types (for example Long vs Integer).
+		metadata.put(DocumentMetadataConstant.DB_BUSINESS_TERM_ID, businessKnowledge.getId().toString());
 
 		return new Document(content, metadata);
 	}

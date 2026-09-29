@@ -15,16 +15,21 @@
  */
 package com.alibaba.cloud.ai.dataagent.config;
 
+import com.alibaba.cloud.ai.dataagent.properties.DataAgentProperties;
 import com.alibaba.cloud.ai.dataagent.properties.FileStorageProperties;
 import com.alibaba.cloud.ai.dataagent.properties.OssStorageProperties;
 import com.alibaba.cloud.ai.dataagent.service.aimodelconfig.AiModelRegistry;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.milvus.autoconfigure.MilvusServiceClientProperties;
 
 import java.lang.reflect.Method;
@@ -64,6 +69,28 @@ class VectorStoreConfigurationTest {
 	void replaceableRuntimeServices_areConditionalOnMissingBean() throws Exception {
 		assertConditional("llmService", AiModelRegistry.class);
 		assertConditional("fileStorageService", FileStorageProperties.class, OssStorageProperties.class);
+	}
+
+	@Test
+	void simpleVectorStoreInitialization_usesSameConditionalPropertyAsSimpleVectorStore() throws Exception {
+		Method init = DataAgentConfiguration.class.getDeclaredMethod("simpleVectorStoreInitialization",
+				SimpleVectorStore.class, DataAgentProperties.class);
+		Method store = DataAgentConfiguration.class.getDeclaredMethod("simpleVectorStore", EmbeddingModel.class);
+
+		ConditionalOnProperty initProperty = init.getAnnotation(ConditionalOnProperty.class);
+		ConditionalOnProperty storeProperty = store.getAnnotation(ConditionalOnProperty.class);
+
+		assertThat(initProperty).isNotNull();
+		assertThat(initProperty.name()).containsExactly("spring.ai.vectorstore.type");
+		assertThat(initProperty.havingValue()).isEqualTo("simple");
+		assertThat(initProperty.matchIfMissing()).isTrue();
+
+		assertThat(storeProperty).isNotNull();
+		assertThat(initProperty.name()).isEqualTo(storeProperty.name());
+		assertThat(initProperty.havingValue()).isEqualTo(storeProperty.havingValue());
+		assertThat(initProperty.matchIfMissing()).isEqualTo(storeProperty.matchIfMissing());
+
+		assertThat(init.getAnnotation(ConditionalOnBean.class)).isNull();
 	}
 
 	private Object property(String resource, String name) throws Exception {
